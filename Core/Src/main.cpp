@@ -56,7 +56,11 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint8_t RxBuffer[514];
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	HAL_UART_Receive_DMA(&huart1, RxBuffer, 514);
+}
 /* USER CODE END 0 */
 
 /**
@@ -91,7 +95,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+	HAL_GPIO_WritePin(USART1_M_GPIO_Port, USART1_M_Pin, GPIO_PIN_RESET);
+	HAL_UART_Receive_DMA(&huart1, RxBuffer, 514);
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -101,6 +107,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
