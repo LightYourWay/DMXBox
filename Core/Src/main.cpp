@@ -56,10 +56,11 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t RxBuffer[513];
+
+uint8_t RxBuffer[513]; // Buffer to write received bytes to with DMA
 
 void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GPIO_PinState LOW = GPIO_PIN_RESET, GPIO_PinState HIGH = GPIO_PIN_SET, int Threshold = 127)
-{
+{ // generic function to toggle any GPIO Pin based on the DMX Channels Value, High/Low Values and Threshold
 	if (RxBuffer[DmxChannel] >= Threshold)
 	{
 		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, HIGH);
@@ -72,28 +73,29 @@ void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GP
 
 void ParseDMX()
 {
-	toggleBasedOnDmx(LD2_GPIO_Port, LD2_Pin, 1);
-	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET);
-	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET);
-	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET);
-	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 5, GPIO_PIN_SET, GPIO_PIN_RESET);
+	toggleBasedOnDmx(LD2_GPIO_Port, LD2_Pin, 1);																 // Build in Board-LED
+	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
+	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
+	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
+	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 5, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
 }
 
 void ParseRDM() {}
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513 bytes have been sucessfully read into buffer
 {
 	if (RxBuffer[0] == 0)
-		ParseDMX();
+		ParseDMX(); // Parsing DMX if Startbyte == 0
 	if (RxBuffer[0] == 204)
-		ParseRDM();
-	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513);
+		ParseRDM(); // Parsing RDM if Startbyte == 204
+
+	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
 }
 
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
 {
-	if (huart->ErrorCode == 4)
-		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513);
+	if (huart->ErrorCode == 4)											// Checking for Framing Error (ErrorCode == 4)
+		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving first full DMX Packet in sync with buffer
 }
 
 /* USER CODE END 0 */
@@ -130,8 +132,8 @@ int main(void)
 	MX_USART1_UART_Init();
 	MX_USART2_UART_Init();
 	/* USER CODE BEGIN 2 */
-	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(USART1_M_GPIO_Port, USART1_M_Pin, GPIO_PIN_RESET);
+
+	HAL_GPIO_WritePin(USART1_M_GPIO_Port, USART1_M_Pin, GPIO_PIN_RESET); // setting Mode Pin Low to put ADM into read mode
 	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513);
 
 	/* USER CODE END 2 */
