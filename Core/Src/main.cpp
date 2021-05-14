@@ -82,6 +82,12 @@ void ParseDMX()
 
 void ParseRDM() {}
 
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
+{
+	if (huart->ErrorCode == 4)											// Checking for Framing Error (ErrorCode == 4)
+		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving first full DMX Packet in sync with buffer
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513 bytes have been sucessfully read into buffer
 {
 	if (RxBuffer[0] == 0)
@@ -90,12 +96,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513
 		ParseRDM(); // Parsing RDM if Startbyte == 204
 
 	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
-}
-
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
-{
-	if (huart->ErrorCode == 4)											// Checking for Framing Error (ErrorCode == 4)
-		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving first full DMX Packet in sync with buffer
 }
 
 /* USER CODE END 0 */
