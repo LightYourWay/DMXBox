@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <vector>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,12 +80,24 @@ void ParseDMX()
 	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 5, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
 }
 
-void ParseRDM() {}
+void ParseRDM()
+{
+	int dataLength = RxBuffer[2];
+	int packetLength = dataLength + 2;
+	vector<uint8_t> rdmPacket (RxBuffer, RxBuffer + packetLength);
+	volatile auto rdmPacketRead = rdmPacket;
+}
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
 {
-	if (huart->ErrorCode == 4)											// Checking for Framing Error (ErrorCode == 4)
-		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving first full DMX Packet in sync with buffer
+	if (huart->ErrorCode == 4)
+	{																								// Checking for Framing Error (ErrorCode == 4)
+		if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
+		{
+			ParseRDM();																		// Parsing RDM if Startbyte == 204
+		}
+		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
+	}
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513 bytes have been sucessfully read into buffer
