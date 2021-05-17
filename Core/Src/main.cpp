@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <vector>
+#include <algorithm>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,7 +75,7 @@ void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GP
 
 void ParseDMX()
 {
-	dmxActivity = true;															 // Build in Board-LED
+	dmxActivity = true;
 	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 1, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
 	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
 	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
@@ -84,11 +84,12 @@ void ParseDMX()
 
 void ParseRDM()
 {
+	uint8_t *rdmPacket = new uint8_t[RxBuffer[2] + 2];
+	std::copy_n(RxBuffer, RxBuffer[2] + 2, rdmPacket);
+	int dataLength = rdmPacket[2];
+	volatile int packetLength = dataLength + 2;
+	UNUSED(packetLength);
 	rdmActivity = true;
-	int dataLength = RxBuffer[2];
-	int packetLength = dataLength + 2;
-	std::vector<uint8_t> rdmPacket(RxBuffer, RxBuffer + packetLength);
-	volatile auto rdmPacketRead = rdmPacket;
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
@@ -166,9 +167,11 @@ int main(void)
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		if (dmxActivity) signalActivityOnLed(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, dmxActivity);
-		if (rdmActivity) signalActivityOnLed(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, rdmActivity);
-		HAL_Delay(10);
+		if (dmxActivity)
+			signalActivityOnLed(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, dmxActivity);
+		if (rdmActivity)
+			signalActivityOnLed(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, rdmActivity);
+		HAL_Delay(50);
 		HAL_GPIO_WritePin(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, GPIO_PIN_RESET);
 	}
