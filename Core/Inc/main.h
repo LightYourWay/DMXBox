@@ -70,8 +70,12 @@ void Error_Handler(void);
 #define USART_RX_GPIO_Port GPIOA
 #define Rel3_Pin GPIO_PIN_4
 #define Rel3_GPIO_Port GPIOA
-#define LD2_Pin GPIO_PIN_5
-#define LD2_GPIO_Port GPIOA
+#define DMX_ACT_LED_Pin GPIO_PIN_5
+#define DMX_ACT_LED_GPIO_Port GPIOA
+#define RDM_ACT_LED_Pin GPIO_PIN_6
+#define RDM_ACT_LED_GPIO_Port GPIOA
+#define ERROR_LED_Pin GPIO_PIN_7
+#define ERROR_LED_GPIO_Port GPIOA
 #define Rel4_Pin GPIO_PIN_0
 #define Rel4_GPIO_Port GPIOB
 #define USART1_M_Pin GPIO_PIN_8

@@ -58,6 +58,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 uint8_t RxBuffer[513]; // Buffer to write received bytes to with DMA
+bool dmxActivity = false;
+bool rdmActivity = false;
 
 void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GPIO_PinState LOW = GPIO_PIN_RESET, GPIO_PinState HIGH = GPIO_PIN_SET, int Threshold = 127)
 { // generic function to toggle any GPIO Pin based on the DMX Channels Value, High/Low Values and Threshold
@@ -73,28 +75,29 @@ void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GP
 
 void ParseDMX()
 {
-	toggleBasedOnDmx(LD2_GPIO_Port, LD2_Pin, 1);																 // Build in Board-LED
-	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
-	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
-	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
-	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 5, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
+	dmxActivity = true;															 // Build in Board-LED
+	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 1, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
+	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
+	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
+	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
 }
 
 void ParseRDM()
 {
+	rdmActivity = true;
 	int dataLength = RxBuffer[2];
 	int packetLength = dataLength + 2;
-	vector<uint8_t> rdmPacket (RxBuffer, RxBuffer + packetLength);
+	std::vector<uint8_t> rdmPacket(RxBuffer, RxBuffer + packetLength);
 	volatile auto rdmPacketRead = rdmPacket;
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
 {
 	if (huart->ErrorCode == 4)
-	{																								// Checking for Framing Error (ErrorCode == 4)
+	{ // Checking for Framing Error (ErrorCode == 4)
 		if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
 		{
-			ParseRDM();																		// Parsing RDM if Startbyte == 204
+			ParseRDM(); // Parsing RDM if Startbyte == 204
 		}
 		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
 	}
@@ -108,6 +111,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513
 		ParseRDM(); // Parsing RDM if Startbyte == 204
 
 	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
+}
+
+void signalActivityOnLed(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, bool &xActivity)
+{
+	HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET);
+	xActivity = false;
 }
 
 /* USER CODE END 0 */
@@ -157,6 +166,11 @@ int main(void)
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+		if (dmxActivity) signalActivityOnLed(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, dmxActivity);
+		if (rdmActivity) signalActivityOnLed(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, rdmActivity);
+		HAL_Delay(10);
+		HAL_GPIO_WritePin(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, GPIO_PIN_RESET);
 	}
 	/* USER CODE END 3 */
 }
