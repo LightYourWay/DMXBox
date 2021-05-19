@@ -58,6 +58,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 uint8_t RxBuffer[513]; // Buffer to write received bytes to with DMA
+int errorCode;
+volatile int otherError;
 bool dmxActivity = false;
 bool rdmActivity = false;
 
@@ -92,24 +94,32 @@ void ParseRDM()
 	rdmActivity = true;
 }
 
+void ParsePacket(bool parseDMX = false)
+{	
+	if (errorCode != 4)
+	{
+		otherError = errorCode; // Display Noise Error / DMX Signal Weak to user if occurs multiple times
+		return; // Expecting to have had framing error before packet content was read
+	}
+
+	if (parseDMX && RxBuffer[0] == 0)
+		ParseDMX(); // Parsing DMX if Startbyte == 0
+	if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
+		ParseRDM(); // Parsing RDM if Startbyte == 204
+}
+
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
 {
-	if (huart->ErrorCode == 4)
-	{ // Checking for Framing Error (ErrorCode == 4)
-		if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
-		{
-			ParseRDM(); // Parsing RDM if Startbyte == 204
-		}
-		HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
-	}
+	errorCode = huart->ErrorCode;
+
+	ParsePacket();
+
+	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513 bytes have been sucessfully read into buffer
 {
-	if (RxBuffer[0] == 0)
-		ParseDMX(); // Parsing DMX if Startbyte == 0
-	if (RxBuffer[0] == 204)
-		ParseRDM(); // Parsing RDM if Startbyte == 204
+	ParsePacket(true);
 
 	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
 }
