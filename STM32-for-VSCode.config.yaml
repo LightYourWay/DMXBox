@@ -13,7 +13,7 @@ language: C++
 optimization: Og
 
 # MCU settings
-targetMCU: stm32f4x
+targetMCU: 
 cpu: -mcpu=cortex-m4
 fpu: -mfpu=fpv4-sp-d16
 floatAbi: -mfloat-abi=hard
@@ -26,6 +26,14 @@ cDefinitions:
 
 cxxDefinitions: []
 asDefinitions: []
+
+# Compiler definition files. you can add a single files or an array of files for different definitions.
+# The file is expected to have a definition each new line.
+# This allows to include for example a .definition file which can be ignored in git and can contain
+# This can be convenient for passing along secrets at compile time, or generating a file for per device setup.
+cDefinitionsFile:
+cxxDefinitionsFile:
+asDefinitionsFile:
 
 # Compiler flags
 cFlags: []
@@ -60,6 +68,9 @@ excludes:
 includeDirectories: 
   - Inc/**
   - Core/Inc/**
+  - Core/Lib/**
+  - Src/**
+  - Core/Src/**
   - Core/Lib/**
 
 

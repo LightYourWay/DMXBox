@@ -19,7 +19,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "dma.h"
+#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -57,6 +59,56 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+uint8_t write_operation(uint8_t addr, uint8_t reg_addr, uint8_t content)
+{
+
+  // Check for invalid address
+  if (addr > 0x03)
+    return 0;
+
+  // Check for invalid register address
+  if (reg_addr > 0x0A)
+    return 0;
+
+  uint8_t OpCode = 0x40;
+
+  // Set the address
+  OpCode |= (addr << 1);
+
+  HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi2, &OpCode, 1, 100);
+  HAL_SPI_Transmit(&hspi2, &reg_addr, 1, 100);
+  HAL_SPI_Transmit(&hspi2, &content, 1, 100);
+  HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_SET);
+
+  return 1;
+}
+// uint8_t *content
+uint8_t read_operation(uint8_t addr, uint8_t reg_addr)
+{
+  // Check for invalid address
+  if (addr > 0x03)
+    return 0;
+
+  // Check for invalid register address
+  if (reg_addr > 0x0A)
+    return 0;
+
+  uint8_t content;
+  uint8_t OpCode = 0x41;
+
+  // Set the address
+  OpCode |= (addr << 1);
+
+  HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi2, &OpCode, 1, 100);
+  HAL_SPI_Transmit(&hspi2, &reg_addr, 1, 100);
+  HAL_SPI_Receive(&hspi2, &content, 1, 100);
+  HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_SET);
+
+  return content;
+}
+
 uint8_t RxBuffer[513]; // Buffer to write received bytes to with DMA
 int errorCode;
 volatile int otherError;
@@ -65,69 +117,69 @@ bool rdmActivity = false;
 
 void toggleBasedOnDmx(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int DmxChannel, GPIO_PinState LOW = GPIO_PIN_RESET, GPIO_PinState HIGH = GPIO_PIN_SET, int Threshold = 127)
 { // generic function to toggle any GPIO Pin based on the DMX Channels Value, High/Low Values and Threshold
-	if (RxBuffer[DmxChannel] >= Threshold)
-	{
-		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, HIGH);
-	}
-	else
-	{
-		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, LOW);
-	}
+  if (RxBuffer[DmxChannel] >= Threshold)
+  {
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, HIGH);
+  }
+  else
+  {
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, LOW);
+  }
 }
 
 void ParseDMX()
 {
-	dmxActivity = true;
-	toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 1, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
-	toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
-	toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
-	toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
+  dmxActivity = true;
+  toggleBasedOnDmx(Rel1_GPIO_Port, Rel1_Pin, 1, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 1
+  toggleBasedOnDmx(Rel2_GPIO_Port, Rel2_Pin, 2, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 2
+  toggleBasedOnDmx(Rel3_GPIO_Port, Rel3_Pin, 3, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 3
+  toggleBasedOnDmx(Rel4_GPIO_Port, Rel4_Pin, 4, GPIO_PIN_SET, GPIO_PIN_RESET); // Relais 4
 }
 
 void ParseRDM()
 {
-	uint8_t *rdmPacket = new uint8_t[RxBuffer[2] + 2];
-	std::copy_n(RxBuffer, RxBuffer[2] + 2, rdmPacket);
-	int dataLength = rdmPacket[2];
-	volatile int packetLength = dataLength + 2;
-	UNUSED(packetLength);
-	rdmActivity = true;
+  uint8_t *rdmPacket = new uint8_t[RxBuffer[2] + 2];
+  std::copy_n(RxBuffer, RxBuffer[2] + 2, rdmPacket);
+  int dataLength = rdmPacket[2];
+  volatile int packetLength = dataLength + 2;
+  UNUSED(packetLength);
+  rdmActivity = true;
 }
 
 void ParsePacket(bool parseDMX = false)
-{	
-	if (errorCode != 4)
-	{
-		otherError = errorCode; // Display Noise Error / DMX Signal Weak to user if occurs multiple times
-		return; // Expecting to have had framing error before packet content was read
-	}
+{
+  if (errorCode != 4)
+  {
+    otherError = errorCode; // Display Noise Error / DMX Signal Weak to user if occurs multiple times
+    return;                 // Expecting to have had framing error before packet content was read
+  }
 
-	if (parseDMX && RxBuffer[0] == 0)
-		ParseDMX(); // Parsing DMX if Startbyte == 0
-	if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
-		ParseRDM(); // Parsing RDM if Startbyte == 204
+  if (parseDMX && RxBuffer[0] == 0)
+    ParseDMX(); // Parsing DMX if Startbyte == 0
+  if (RxBuffer[0] == 204 && RxBuffer[1] == 1)
+    ParseRDM(); // Parsing RDM if Startbyte == 204
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) // executed for any error - normally terminating receive
 {
-	errorCode = huart->ErrorCode;
+  errorCode = huart->ErrorCode;
 
-	ParsePacket();
+  ParsePacket();
 
-	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
+  HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next full DMX Packet in sync with buffer
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) // executed when all 513 bytes have been sucessfully read into buffer
 {
-	ParsePacket(true);
+  ParsePacket(true);
 
-	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
+  HAL_UART_Receive_DMA(&huart1, RxBuffer, 513); // Receiving next DMX Packet
 }
 
 void signalActivityOnLed(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, bool &xActivity)
 {
-	HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET);
-	xActivity = false;
+  HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET);
+  xActivity = false;
 }
 
 /* USER CODE END 0 */
@@ -138,54 +190,132 @@ void signalActivityOnLed(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, bool &xActivity
   */
 int main(void)
 {
-	/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_DMA_Init();
-	MX_USART1_UART_Init();
-	MX_USART2_UART_Init();
-	/* USER CODE BEGIN 2 */
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_USART1_UART_Init();
+  MX_USART2_UART_Init();
+  MX_SPI2_Init();
+  MX_ADC1_Init();
+  /* USER CODE BEGIN 2 */
 
-	HAL_GPIO_WritePin(USART1_M_GPIO_Port, USART1_M_Pin, GPIO_PIN_RESET); // setting Mode Pin Low to put ADM into read mode
-	HAL_UART_Receive_DMA(&huart1, RxBuffer, 513);
+  uint8_t chip_addr1 = 0x00;
+  uint8_t chip_addr2 = 0x01;
+  uint8_t is_output = 1;
 
-	/* USER CODE END 2 */
+  uint8_t IO_DIR_REG = 0x00;
+  uint8_t set_output = 0x00;
+  
+  if (write_operation(chip_addr1, IO_DIR_REG, set_output) == 0 || write_operation(chip_addr2, IO_DIR_REG, set_output) == 0) is_output = 0;
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
-	while (1)
-	{
-		/* USER CODE END WHILE */
+  uint8_t CONFIG_REG = 0x05;
+  uint8_t enable_addresses = 0x08;
 
-		/* USER CODE BEGIN 3 */
-		if (dmxActivity)
-			signalActivityOnLed(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, dmxActivity);
-		if (rdmActivity)
-			signalActivityOnLed(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, rdmActivity);
-		HAL_Delay(50);
-		HAL_GPIO_WritePin(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, GPIO_PIN_RESET);
-	}
-	/* USER CODE END 3 */
+  if (write_operation(chip_addr1, CONFIG_REG, enable_addresses) == 0 || write_operation(chip_addr2, CONFIG_REG, enable_addresses) == 0) is_output = 0;
+
+  HAL_GPIO_WritePin(USART1_M_GPIO_Port, USART1_M_Pin, GPIO_PIN_RESET); // setting Mode Pin Low to put ADM into read mode
+  HAL_UART_Receive_DMA(&huart1, RxBuffer, 513);
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
+uint8_t GPIO_REG = 0x09;
+
+  uint8_t read_buf = read_operation(chip_addr1, 0x05);
+  uint8_t left_bits = read_buf >> 4;
+  uint8_t right_bits = read_buf & 0x0F;
+
+
+  write_operation(chip_addr1, GPIO_REG, left_bits);
+  write_operation(chip_addr2, GPIO_REG, right_bits);
+  HAL_Delay(5000);
+
+  write_operation(chip_addr1, GPIO_REG, 0x00);
+  write_operation(chip_addr2, GPIO_REG, 0x00);
+
+  uint32_t analog_value = 0;
+
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+    // if (dmxActivity)
+    //   signalActivityOnLed(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, dmxActivity);
+    // if (rdmActivity)
+    //   signalActivityOnLed(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, rdmActivity);
+    // HAL_Delay(50);
+    // HAL_GPIO_WritePin(DMX_ACT_LED_GPIO_Port, DMX_ACT_LED_Pin, GPIO_PIN_RESET);
+    // HAL_GPIO_WritePin(RDM_ACT_LED_GPIO_Port, RDM_ACT_LED_Pin, GPIO_PIN_RESET);
+    HAL_ADC_Start(&hadc1);
+    if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
+      analog_value = HAL_ADC_GetValue(&hadc1);
+    }
+    HAL_ADC_Stop(&hadc1);
+
+    if (analog_value > 2250) {
+      HAL_GPIO_WritePin(Rel1_GPIO_Port, Rel1_Pin, GPIO_PIN_SET);
+    } else {
+      HAL_GPIO_WritePin(Rel1_GPIO_Port, Rel1_Pin, GPIO_PIN_RESET);
+    }
+    // HAL_Delay(200);
+
+    // if (write_operation(chip_addr1, GPIO_REG, 0x04) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+
+    // if (write_operation(chip_addr1, GPIO_REG, 0x02) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+    // if (write_operation(chip_addr1, GPIO_REG, 0x01) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+    // if (write_operation(chip_addr1, GPIO_REG, 0x00) == 0) {
+    //   break;
+    // }
+    // if (write_operation(chip_addr2, GPIO_REG, 0x04) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+
+    // if (write_operation(chip_addr2, GPIO_REG, 0x02) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+    // if (write_operation(chip_addr2, GPIO_REG, 0x01) == 0) {
+    //   break;
+    // }
+    // HAL_Delay(200);
+    // if (write_operation(chip_addr2, GPIO_REG, 0x00) == 0) {
+    //   break;
+    // }
+  }
+  /* USER CODE END 3 */
 }
 
 /**
@@ -194,41 +324,42 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-	/** Configure the main internal regulator output voltage
+  /** Configure the main internal regulator output voltage
   */
-	__HAL_RCC_PWR_CLK_ENABLE();
-	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-	/** Initializes the RCC Oscillators according to the specified parameters
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-	RCC_OscInitStruct.PLL.PLLM = 8;
-	RCC_OscInitStruct.PLL.PLLN = 100;
-	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-	RCC_OscInitStruct.PLL.PLLQ = 4;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	/** Initializes the CPU, AHB and APB buses clocks
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 80;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
   */
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
-	{
-		Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -241,16 +372,16 @@ void SystemClock_Config(void)
   */
 void Error_Handler(void)
 {
-	/* USER CODE BEGIN Error_Handler_Debug */
-	/* User can add his own implementation to report the HAL error return state */
-	__disable_irq();
-	while (1)
-	{
-	}
-	/* USER CODE END Error_Handler_Debug */
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
@@ -260,10 +391,10 @@ void Error_Handler(void)
   */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-	/* USER CODE BEGIN 6 */
-	/* User can add his own implementation to report the file name and line number,
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-	/* USER CODE END 6 */
+  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
 

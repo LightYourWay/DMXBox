@@ -36,13 +36,17 @@ BUILD_DIR = build
 ######################################
 # C sources
 C_SOURCES =  \
+Core/Src/adc.c \
 Core/Src/dma.c \
 Core/Src/gpio.c \
+Core/Src/spi.c \
 Core/Src/stm32f4xx_hal_msp.c \
 Core/Src/stm32f4xx_it.c \
 Core/Src/system_stm32f4xx.c \
 Core/Src/usart.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c \
@@ -55,9 +59,11 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c
 
 
 CPP_SOURCES = \
@@ -77,7 +83,7 @@ PREFIX = arm-none-eabi-
 POSTFIX = "
 # The gcc compiler bin path can be either defined in make command via GCC_PATH variable (> make GCC_PATH=xxx)
 # either it can be added to the PATH environment variable.
-GCC_PATH="C:/Users/lukas/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/arm-none-eabi-gcc/10.2.1-1.1.2/.content/bin
+GCC_PATH="/home/lukas/.config/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/arm-none-eabi-gcc/10.2.1-1.1.2/.content/bin
 ifdef GCC_PATH
 CXX = $(GCC_PATH)/$(PREFIX)g++$(POSTFIX)
 CC = $(GCC_PATH)/$(PREFIX)gcc$(POSTFIX)
@@ -141,12 +147,14 @@ ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2
 endif
 
+# Add additional flags
+CFLAGS += 
+ASFLAGS += -specs=nosys.specs 
+CXXFLAGS = 
+CXXFLAGS += -feliminate-unused-debug-types
 
 # Generate dependency information
 CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
-
-CXXFLAGS?=
-CXXFLAGS += -feliminate-unused-debug-types
 
 #######################################
 # LDFLAGS
@@ -207,19 +215,19 @@ $(BUILD_DIR):
 # flash
 #######################################
 flash: $(BUILD_DIR)/$(TARGET).elf
-	"C:/Users/lukas/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/openocd/0.11.0-1.1/.content/bin/openocd.exe" -f ./openocd.cfg -c "program $(BUILD_DIR)/$(TARGET).elf verify reset exit"
+	"/home/lukas/.config/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/openocd/0.11.0-1.1/.content/bin/openocd" -f ./openocd.cfg -c "program $(BUILD_DIR)/$(TARGET).elf verify reset exit"
 
 #######################################
 # erase
 #######################################
 erase: $(BUILD_DIR)/$(TARGET).elf
-	"C:/Users/lukas/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/openocd/0.11.0-1.1/.content/bin/openocd.exe" -f ./openocd.cfg -c "init; reset halt; stm32f4x mass_erase 0; exit"
+	"/home/lukas/.config/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-tools/openocd/0.11.0-1.1/.content/bin/openocd" -f ./openocd.cfg -c "init; reset halt;  mass_erase 0; exit"
 
 #######################################
 # clean up
 #######################################
 clean:
-	cmd /c rd /s /q $(BUILD_DIR)
+	-rm -fR $(BUILD_DIR)
 	
 #######################################
 # dependencies
